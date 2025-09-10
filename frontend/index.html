@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Order Management System</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .form-group { margin: 10px 0; }
+        input, button { padding: 8px; margin: 5px; }
+        button { background: #007bff; color: white; border: none; cursor: pointer; }
+        .orders { margin-top: 20px; }
+        .order { border: 1px solid #ddd; padding: 10px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Order Management System</h1>
+        
+        <h2>Create New Order</h2>
+        <form id="orderForm">
+            <div class="form-group">
+                <input type="text" id="customerName" placeholder="Customer Name" required>
+                <input type="email" id="customerEmail" placeholder="Customer Email" required>
+            </div>
+            <div class="form-group">
+                <input type="text" id="bookTitle" placeholder="Book Title" required>
+                <input type="text" id="bookIsbn" placeholder="Book ISBN" required>
+            </div>
+            <div class="form-group">
+                <input type="number" id="quantity" placeholder="Quantity" required>
+                <input type="number" id="price" step="0.01" placeholder="Price" required>
+            </div>
+            <button type="submit">Create Order</button>
+        </form>
+
+        <h2>Orders</h2>
+        <button onclick="loadOrders()">Refresh Orders</button>
+        <div id="orders" class="orders"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://7dungg9tp3.execute-api.us-east-1.amazonaws.com/prod';
+
+        document.getElementById('orderForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const order = {
+                customer_name: document.getElementById('customerName').value,
+                customer_email: document.getElementById('customerEmail').value,
+                book_title: document.getElementById('bookTitle').value,
+                book_isbn: document.getElementById('bookIsbn').value,
+                quantity: parseInt(document.getElementById('quantity').value),
+                price: parseFloat(document.getElementById('price').value)
+            };
+
+            try {
+                console.log('Creating order:', order);
+                const response = await fetch(`${API_BASE}/orders`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(order)
+                });
+                
+                console.log('Response status:', response.status);
+                const responseText = await response.text();
+                console.log('Response:', responseText);
+                
+                if (response.ok) {
+                    alert('Order created successfully!');
+                    document.getElementById('orderForm').reset();
+                    loadOrders();
+                } else {
+                    alert('Error creating order: ' + responseText);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error: ' + error.message);
+            }
+        });
+
+        async function loadOrders() {
+            try {
+                const response = await fetch(`${API_BASE}/orders`);
+                let orders = await response.json();
+                if (typeof orders === 'string') {
+                    orders = JSON.parse(orders);
+                }
+                
+                const ordersDiv = document.getElementById('orders');
+                if (!orders || orders.length === 0) {
+                    ordersDiv.innerHTML = '<p>No orders are in the system</p>';
+                    return;
+                }
+                ordersDiv.innerHTML = orders.map(order => `
+                    <div class="order">
+                        <strong>Order ID:</strong> ${order.order_id}<br>
+                        <strong>Customer:</strong> ${order.customer_name} (${order.customer_email})<br>
+                        <strong>Book:</strong> ${order.book_title} (ISBN: ${order.book_isbn})<br>
+                        <strong>Quantity:</strong> ${order.quantity} | <strong>Price:</strong> $${order.price}<br>
+                        <strong>Total:</strong> $${order.total_amount} | <strong>Status:</strong> ${order.status}<br>
+                        <strong>Date:</strong> ${new Date(order.order_date).toLocaleString()}<br>
+                        <button onclick="modifyOrder('${order.order_id}')">Modify Order</button>
+                        <button onclick="updateOrderStatus('${order.order_id}', 'shipped')">Mark as Shipped</button>
+                        <button onclick="cancelOrder('${order.order_id}')">Cancel Order</button>
+                    </div>
+                `).join('');
+            } catch (error) {
+                document.getElementById('orders').innerHTML = 'Error loading orders: ' + error.message;
+            }
+        }
+
+        async function modifyOrder(orderId) {
+            try {
+                const response = await fetch(`${API_BASE}/orders`);
+                const orders = await response.json();
+                
+                const order = orders.find(o => o.order_id === orderId);
+                if (!order) {
+                    alert('Order not found');
+                    return;
+                }
+                
+                const newQuantity = prompt('Enter new quantity:', order.quantity);
+                const newPrice = prompt('Enter new price:', order.price);
+                
+                if (newQuantity !== null && newPrice !== null && newQuantity !== '' && newPrice !== '') {
+                    const quantity = parseInt(newQuantity);
+                    const price = parseFloat(newPrice);
+                    
+                    const updatedOrder = {
+                        quantity: quantity,
+                        price: price,
+                        total_amount: quantity * price
+                    };
+                    
+                    const updateResponse = await fetch(`${API_BASE}/orders/${orderId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updatedOrder)
+                    });
+                    
+                    if (updateResponse.ok) {
+                        alert('Order modified successfully!');
+                        loadOrders();
+                    } else {
+                        const errorText = await updateResponse.text();
+                        alert('Error modifying order: ' + errorText);
+                    }
+                }
+            } catch (error) {
+                console.error('Modify order error:', error);
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function updateOrderStatus(orderId, status) {
+            try {
+                const response = await fetch(`${API_BASE}/orders/${orderId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: status })
+                });
+                
+                if (response.ok) {
+                    alert('Order status updated successfully!');
+                    loadOrders();
+                } else {
+                    alert('Error updating order status');
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function cancelOrder(orderId) {
+            if (confirm('Are you sure you want to cancel this order?')) {
+                try {
+                    const response = await fetch(`${API_BASE}/orders/${orderId}`, {
+                        method: 'DELETE'
+                    });
+                    
+                    if (response.ok) {
+                        alert('Order cancelled successfully!');
+                        loadOrders();
+                    } else {
+                        alert('Error cancelling order');
+                    }
+                } catch (error) {
+                    alert('Error: ' + error.message);
+                }
+            }
+        }
+
+        // Load orders on page load
+        loadOrders();
+    </script>
+</body>
+</html>
