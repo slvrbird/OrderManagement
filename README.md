@@ -9,6 +9,10 @@ A serverless order management system built with AWS Lambda, API Gateway, and S3 
 - **API**: API Gateway with CORS enabled
 - **Storage**: In-memory mock data store
 
+## 📱 User Interface
+
+![Order Management Interface](docs/interface-screenshot.png)
+
 ## 🚀 Features
 
 - ✅ Create new orders
