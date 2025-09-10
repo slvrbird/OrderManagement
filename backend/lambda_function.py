@@ -7,8 +7,45 @@ from decimal import Decimal
 dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
 table = dynamodb.Table('BookOrders')
 
-# Mock data store
-mock_orders = []
+# Mock data store with sample orders
+mock_orders = [
+    {
+        'order_id': 'sample-001',
+        'customer_name': 'John Doe',
+        'customer_email': 'john.doe@email.com',
+        'book_title': 'Python Programming Fundamentals',
+        'book_isbn': '978-0134444321',
+        'quantity': 2,
+        'price': '45.99',
+        'total_amount': '91.98',
+        'order_date': '2025-01-10T14:30:00.000000',
+        'status': 'pending'
+    },
+    {
+        'order_id': 'sample-002',
+        'customer_name': 'Sarah Wilson',
+        'customer_email': 'sarah.wilson@email.com',
+        'book_title': 'AWS Cloud Architecture',
+        'book_isbn': '978-1617294440',
+        'quantity': 1,
+        'price': '59.99',
+        'total_amount': '59.99',
+        'order_date': '2025-01-10T15:45:00.000000',
+        'status': 'shipped'
+    },
+    {
+        'order_id': 'sample-003',
+        'customer_name': 'Mike Johnson',
+        'customer_email': 'mike.johnson@email.com',
+        'book_title': 'JavaScript: The Good Parts',
+        'book_isbn': '978-0596517748',
+        'quantity': 3,
+        'price': '29.99',
+        'total_amount': '89.97',
+        'order_date': '2025-01-10T16:20:00.000000',
+        'status': 'cancelled'
+    }
+]
 
 def lambda_handler(event, context):
     method = event['httpMethod']
