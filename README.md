@@ -4,6 +4,9 @@ A serverless order management system built with AWS Lambda, API Gateway, and S3 
 
 ## 🏗️ Architecture
 
+- [System Architecture](docs/architecture.png) - AWS infrastructure overview
+- [Repository Structure](docs/repository-structure.png) - GitHub project organization
+
 - **Frontend**: S3 Static Website (HTML/CSS/JS)
 - **Backend**: AWS Lambda Function
 - **API**: API Gateway with CORS enabled
