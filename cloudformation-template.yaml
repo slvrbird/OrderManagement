@@ -1,0 +1,375 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Order Management System - Serverless architecture with Lambda, API Gateway, and S3'
+
+Parameters:
+  BucketName:
+    Type: String
+    Default: order-management-system
+    Description: Name for the S3 bucket (must be globally unique)
+  
+  LambdaFunctionName:
+    Type: String
+    Default: OrderManagementAPI
+    Description: Name for the Lambda function
+
+Resources:
+  # S3 Bucket for static website hosting
+  WebsiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${BucketName}-${AWS::AccountId}"
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: error.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+
+  # S3 Bucket Policy for public read access
+  WebsiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WebsiteBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: 's3:GetObject'
+            Resource: !Sub "${WebsiteBucket}/*"
+
+  # IAM Role for Lambda function
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  # Lambda function
+  OrderManagementFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Ref LambdaFunctionName
+      Runtime: python3.9
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          import uuid
+          from datetime import datetime
+          
+          # Mock data store with sample orders
+          mock_orders = [
+              {
+                  'order_id': 'sample-001',
+                  'customer_name': 'John Doe',
+                  'customer_email': 'john.doe@email.com',
+                  'book_title': 'Python Programming Fundamentals',
+                  'book_isbn': '978-0134444321',
+                  'quantity': 2,
+                  'price': '45.99',
+                  'total_amount': '91.98',
+                  'order_date': '2025-01-10T14:30:00.000000',
+                  'status': 'pending'
+              },
+              {
+                  'order_id': 'sample-002',
+                  'customer_name': 'Sarah Wilson',
+                  'customer_email': 'sarah.wilson@email.com',
+                  'book_title': 'AWS Cloud Architecture',
+                  'book_isbn': '978-1617294440',
+                  'quantity': 1,
+                  'price': '59.99',
+                  'total_amount': '59.99',
+                  'order_date': '2025-01-10T15:45:00.000000',
+                  'status': 'shipped'
+              }
+          ]
+          
+          def lambda_handler(event, context):
+              method = event['httpMethod']
+              path = event['path']
+              
+              headers = {
+                  'Access-Control-Allow-Origin': '*',
+                  'Access-Control-Allow-Headers': 'Content-Type',
+                  'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
+              }
+              
+              if method == 'OPTIONS':
+                  return {'statusCode': 200, 'headers': headers, 'body': ''}
+              
+              try:
+                  if method == 'GET' and path == '/orders':
+                      return {
+                          'statusCode': 200,
+                          'headers': headers,
+                          'body': json.dumps(mock_orders)
+                      }
+                  
+                  elif method == 'POST' and path == '/orders':
+                      data = json.loads(event['body'])
+                      order_id = str(uuid.uuid4())
+                      
+                      order = {
+                          'order_id': order_id,
+                          'customer_name': data['customer_name'],
+                          'customer_email': data['customer_email'],
+                          'book_title': data['book_title'],
+                          'book_isbn': data['book_isbn'],
+                          'quantity': data['quantity'],
+                          'price': str(data['price']),
+                          'total_amount': str(data['quantity'] * data['price']),
+                          'order_date': datetime.now().isoformat(),
+                          'status': 'pending'
+                      }
+                      
+                      mock_orders.append(order)
+                      return {
+                          'statusCode': 201,
+                          'headers': headers,
+                          'body': json.dumps(order)
+                      }
+                  
+                  elif method == 'PUT' and '/orders/' in path:
+                      order_id = path.split('/')[-1]
+                      data = json.loads(event['body'])
+                      
+                      for order in mock_orders:
+                          if order['order_id'] == order_id:
+                              if 'status' in data:
+                                  order['status'] = data['status']
+                              if 'quantity' in data:
+                                  order['quantity'] = data['quantity']
+                              if 'price' in data:
+                                  order['price'] = str(data['price'])
+                              if 'total_amount' in data:
+                                  order['total_amount'] = str(data['total_amount'])
+                              return {
+                                  'statusCode': 200,
+                                  'headers': headers,
+                                  'body': json.dumps({'message': 'Order updated successfully'})
+                              }
+                      
+                      return {
+                          'statusCode': 404,
+                          'headers': headers,
+                          'body': json.dumps({'error': 'Order not found'})
+                      }
+                  
+                  elif method == 'DELETE' and '/orders/' in path:
+                      order_id = path.split('/')[-1]
+                      
+                      for order in mock_orders:
+                          if order['order_id'] == order_id:
+                              order['status'] = 'cancelled'
+                              return {
+                                  'statusCode': 200,
+                                  'headers': headers,
+                                  'body': json.dumps({'message': 'Order cancelled successfully'})
+                              }
+                      
+                      return {
+                          'statusCode': 404,
+                          'headers': headers,
+                          'body': json.dumps({'error': 'Order not found'})
+                      }
+                  
+                  else:
+                      return {
+                          'statusCode': 404,
+                          'headers': headers,
+                          'body': json.dumps({'error': 'Not found'})
+                      }
+                      
+              except Exception as e:
+                  return {
+                      'statusCode': 500,
+                      'headers': headers,
+                      'body': json.dumps({'error': str(e)})
+                  }
+
+  # API Gateway REST API
+  OrderManagementAPI:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: OrderManagementAPI
+      Description: REST API for Order Management System
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  # API Gateway Resource for /orders
+  OrdersResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref OrderManagementAPI
+      ParentId: !GetAtt OrderManagementAPI.RootResourceId
+      PathPart: orders
+
+  # API Gateway Resource for /orders/{id}
+  OrderByIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref OrderManagementAPI
+      ParentId: !Ref OrdersResource
+      PathPart: '{id}'
+
+  # GET /orders method
+  GetOrdersMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref OrderManagementAPI
+      ResourceId: !Ref OrdersResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OrderManagementFunction.Arn}/invocations"
+
+  # POST /orders method
+  PostOrdersMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref OrderManagementAPI
+      ResourceId: !Ref OrdersResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OrderManagementFunction.Arn}/invocations"
+
+  # OPTIONS /orders method (CORS)
+  OptionsOrdersMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref OrderManagementAPI
+      ResourceId: !Ref OrdersResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+
+  # PUT /orders/{id} method
+  PutOrderByIdMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref OrderManagementAPI
+      ResourceId: !Ref OrderByIdResource
+      HttpMethod: PUT
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OrderManagementFunction.Arn}/invocations"
+
+  # DELETE /orders/{id} method
+  DeleteOrderByIdMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref OrderManagementAPI
+      ResourceId: !Ref OrderByIdResource
+      HttpMethod: DELETE
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OrderManagementFunction.Arn}/invocations"
+
+  # OPTIONS /orders/{id} method (CORS)
+  OptionsOrderByIdMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref OrderManagementAPI
+      ResourceId: !Ref OrderByIdResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+
+  # Lambda permission for API Gateway
+  LambdaApiGatewayPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref OrderManagementFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "${OrderManagementAPI}/*/*"
+
+  # API Gateway Deployment
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - GetOrdersMethod
+      - PostOrdersMethod
+      - OptionsOrdersMethod
+      - PutOrderByIdMethod
+      - DeleteOrderByIdMethod
+      - OptionsOrderByIdMethod
+    Properties:
+      RestApiId: !Ref OrderManagementAPI
+      StageName: prod
+
+Outputs:
+  WebsiteURL:
+    Description: URL of the S3 static website
+    Value: !Sub "http://${WebsiteBucket}.s3-website-${AWS::Region}.amazonaws.com"
+    Export:
+      Name: !Sub "${AWS::StackName}-WebsiteURL"
+
+  ApiGatewayURL:
+    Description: URL of the API Gateway
+    Value: !Sub "https://${OrderManagementAPI}.execute-api.${AWS::Region}.amazonaws.com/prod"
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiGatewayURL"
+
+  S3BucketName:
+    Description: Name of the S3 bucket
+    Value: !Ref WebsiteBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-S3BucketName"
+
+  LambdaFunctionArn:
+    Description: ARN of the Lambda function
+    Value: !GetAtt OrderManagementFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-LambdaFunctionArn"

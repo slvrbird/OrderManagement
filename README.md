@@ -46,8 +46,8 @@ OrderManagement/
 
 ## 🌐 Live Demo
 
-- **Website**: http://order-mgmt-12345.s3-website-us-east-1.amazonaws.com
-- **API**: https://7dungg9tp3.execute-api.us-east-1.amazonaws.com/prod
+- **Website**: https://your-cloudfront-distribution.cloudfront.net
+- **API**: https://your-api-gateway-id.execute-api.region.amazonaws.com/prod
 
 ## 📱 User Interface
 
@@ -76,24 +76,43 @@ Date: 1/10/2025, 2:30:00 PM
 
 ## 🛠️ Deployment Instructions
 
-### 1. Deploy Lambda Function
-1. Create AWS Lambda function with Python 3.9 runtime
-2. Upload `backend/lambda_function.py` as function code
-3. Set handler to `lambda_function.lambda_handler`
-4. Configure execution role with basic Lambda permissions
+### Option 1: CloudFormation (Recommended)
 
-### 2. Setup API Gateway
-1. Create REST API in API Gateway
-2. Create `/orders` resource with GET, POST methods
-3. Create `/orders/{id}` resource with PUT, DELETE methods
-4. Enable CORS for all methods
-5. Deploy API to `prod` stage
+**One-click deployment with infrastructure as code:**
 
-### 3. Deploy Frontend
-1. Create S3 bucket with static website hosting enabled
-2. Upload `frontend/index.html` to bucket
-3. Set bucket policy for public read access
-4. Update API_BASE URL in HTML to your API Gateway endpoint
+```bash
+# Deploy the complete stack
+aws cloudformation create-stack \
+  --stack-name order-management-system \
+  --template-body file://cloudformation-template.yaml \
+  --parameters ParameterKey=BucketName,ParameterValue=my-order-system \
+  --capabilities CAPABILITY_IAM
+
+# Upload frontend after stack creation
+aws s3 cp frontend/index.html s3://BUCKET_NAME/ --content-type "text/html"
+```
+
+See [deployment-instructions.md](deployment-instructions.md) for detailed steps.
+
+### Option 2: Manual Setup
+
+**Step-by-step manual deployment:**
+
+1. **Deploy Lambda Function**
+   - Create AWS Lambda function with Python 3.9 runtime
+   - Upload `backend/lambda_function.py` as function code
+   - Set handler to `lambda_function.lambda_handler`
+
+2. **Setup API Gateway**
+   - Create REST API in API Gateway
+   - Create `/orders` resource with GET, POST methods
+   - Create `/orders/{id}` resource with PUT, DELETE methods
+   - Enable CORS for all methods
+
+3. **Deploy Frontend**
+   - Create S3 bucket with static website hosting
+   - Upload `frontend/index.html` to bucket
+   - Set bucket policy for public read access
 
 ## 💻 Frontend Code Preview
 
